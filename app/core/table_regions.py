@@ -1,6 +1,7 @@
+# table_regions.py
+import os
 import cv2
 import numpy as np
-import os
 
 def extract_and_save_table_regions(image_path, output_prefix="table_region", min_area=3000, aspect_ratio_range=(0.5, 3.0)):
     """
@@ -8,10 +9,13 @@ def extract_and_save_table_regions(image_path, output_prefix="table_region", min
     저장 디렉토리는 image_path에서 추출한 파일 이름(확장자 제외)을 사용하여 "tables/page_n" 형식으로 생성된다.
     
     Parameters:
-        image_path (str): 입력 이미지 파일 경로. 예를 들어 ".../page_1.png" 형태.
+        image_path (str): 입력 이미지 파일 경로. 예: ".../page_1.png"
         output_prefix (str): 저장되는 파일명의 접두사 (기본값 "table_region").
         min_area (int): 표 후보 영역의 최소 면적 (픽셀 단위, 기본값 3000).
         aspect_ratio_range (tuple): 표 영역의 가로세로 비율 범위 (min_ratio, max_ratio), 기본값 (0.5, 3.0).
+    
+    Returns:
+        saved_paths (list): 추출된 표 영역 이미지들이 저장된 경로의 리스트.
     """
     # image_path에서 파일명(확장자 제외) 추출 (예: "page_1")
     base_filename = os.path.basename(image_path)
@@ -19,8 +23,7 @@ def extract_and_save_table_regions(image_path, output_prefix="table_region", min
     
     # 저장 디렉토리 설정: "tables/page_n" 형식
     output_dir = os.path.join("tables", page_name)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
     
     # 1. 이미지 읽기
     image = cv2.imread(image_path)
@@ -42,6 +45,7 @@ def extract_and_save_table_regions(image_path, output_prefix="table_region", min
     # 4. 컨투어 검출
     contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
+    saved_paths = []
     # 5. 표 영역 후보 추출 및 필터링 후 저장
     for idx, cnt in enumerate(contours):
         area = cv2.contourArea(cnt)
@@ -57,6 +61,7 @@ def extract_and_save_table_regions(image_path, output_prefix="table_region", min
             # 출력 파일 경로 구성: output_dir 내에 output_prefix_번호.png로 저장
             output_filename = os.path.join(output_dir, f"{output_prefix}_{idx+1}.png")
             cv2.imwrite(output_filename, table_img)
+            saved_paths.append(output_filename)
             # (옵션) 원본 이미지에 검출 영역 표시 (디버그용)
             cv2.rectangle(orig_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
     
@@ -65,8 +70,12 @@ def extract_and_save_table_regions(image_path, output_prefix="table_region", min
     # cv2.imshow("Detected Tables", orig_image)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
+    
+    return saved_paths
 
 if __name__ == '__main__':
-    # 예시: 이미지 파일 경로가 "page_1.png", "page_2.png" 등으로 저장되어 있다고 가정
-    image_path = 'images/page_3.png'
-    extract_and_save_table_regions(image_path)
+    # 예시 사용
+    image_path = 'images/page_1.png'
+    saved_paths = extract_and_save_table_regions(image_path)
+    print("저장된 표 영역 이미지 경로:")
+    print(saved_paths)

@@ -1,0 +1,3 @@
+1. 병합 쉘 영역 구분을 Floodfill 알고리즘을 이용해서 진행하기. 각 병합 쉘마다 각기 다른 group index 설정하고 새로 merge_matrix를 만들어서 개인 쉘은 0, 병합 쉘은 group index로 구분지을 수 있게 함. x span과 y span도 유지.
+2. 데이터 추출이 끝나고 저장할때 x y 등 쓸모없는 값들 제거하고 오직 데이터값만 matrix에 정확한 위치에 남도록 하고 merge_matrix만 유지시킴.
+3. parsing 패턴 만들어야함. 테이블을 구분하고 각 구분에 맞춰 테이블을 파싱해야함.

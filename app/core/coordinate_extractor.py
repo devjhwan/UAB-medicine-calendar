@@ -1,3 +1,4 @@
+# coordinate_extractor.py
 import cv2
 import numpy as np
 
@@ -16,9 +17,9 @@ def filter_close_coordinates(coords, threshold=10):
         if abs(coord - group[-1]) < threshold:
             group.append(coord)
         else:
-            filtered.append(int(np.median(group)))
+            filtered.append(int(np.mean(group)))
             group = [coord]
-    filtered.append(int(np.median(group)))
+    filtered.append(int(np.mean(group)))
     return filtered
 
 def get_filtered_coordinates(image_path, threshold=10):
@@ -48,8 +49,7 @@ def get_filtered_coordinates(image_path, threshold=10):
     v_lines_raw = cv2.dilate(v_lines_raw, vertical_kernel, iterations=1)
     
     # 최소 길이 조건 적용
-    # - 가로 선: 너비가 300픽셀 이상
-    # - 세로 선: 높이가 100픽셀 이상
+    # - 가로 선: 너비가 150픽셀 이상 (필요 시 값 조정)
     h_contours, _ = cv2.findContours(h_lines_raw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     h_lines = np.zeros_like(h_lines_raw)
     for cnt in h_contours:
@@ -57,6 +57,7 @@ def get_filtered_coordinates(image_path, threshold=10):
         if w >= 150:
             cv2.drawContours(h_lines, [cnt], -1, 255, thickness=cv2.FILLED)
     
+    # - 세로 선: 높이가 100픽셀 이상
     v_contours, _ = cv2.findContours(v_lines_raw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     v_lines = np.zeros_like(v_lines_raw)
     for cnt in v_contours:
@@ -89,15 +90,3 @@ def get_filtered_coordinates(image_path, threshold=10):
     filtered_y = filter_close_coordinates(y_list, threshold=threshold)
     
     return filtered_x, filtered_y
-
-if __name__ == '__main__':
-    # 이미지 파일 경로 (필요에 따라 경로 수정)
-    image_path = 'tables/page_1/table_region_20.png'
-    
-    filtered_x, filtered_y = get_filtered_coordinates(image_path, threshold=10)
-    
-    print("필터링된 x 좌표 리스트:")
-    print(filtered_x)
-    print("\n필터링된 y 좌표 리스트:")
-    print(filtered_y)
-    print(len(filtered_y))
