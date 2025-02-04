@@ -1,10 +1,10 @@
 # main.py
 import os
 from core import parse_pdf_to_images, extract_and_save_table_regions, \
-                 get_filtered_coordinates, generate_table_structure, \
-                 extract_table_data
+                 get_filtered_coordinates, extract_table_data
 from helper import save_preprocessed_merged_cells, draw_cell_boundaries, \
                    draw_grid_on_image, save_extracted_data_json
+from model.table import Table
 
 def process_page(page_image_path):
     """
@@ -43,10 +43,10 @@ def process_page(page_image_path):
         # draw_grid_on_image(table_region_path, filtered_x, filtered_y, page_num, table_idx)
         
         # 셀 그리드 및 병합 셀 구성
-        cell_matrix, cells, merge_matrix = generate_table_structure(table_region_path, filtered_x, filtered_y)
+        table = Table.from_image(table_region_path, filtered_x, filtered_y)
         print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
         
-        # draw_cell_boundaries(table_region_path, cell_matrix, page_num, table_idx)
+        draw_cell_boundaries(table, page_num, table_idx)
         
         # # OCR 데이터 추출
         # extract_table_data(table_region_path, cells)

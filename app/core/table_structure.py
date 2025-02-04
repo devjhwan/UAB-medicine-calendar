@@ -148,13 +148,8 @@ def generate_table_structure(image_path, x_list, y_list, intensity_threshold=50)
             if flag == 15:
                 # 독립 셀
                 cell = {
-                    'x_start': x_list[j],
-                    'y_start': y_list[i],
-                    'x_length': x_list[j+1] - x_list[j],
-                    'y_length': y_list[i+1] - y_list[i],
-                    'x_span': 1,
-                    'y_span': 1,
-                    'group': 0,
+                    'row': i,
+                    'col': j,
                     'data': None
                 }
                 cells.append(cell)
@@ -171,27 +166,16 @@ def generate_table_structure(image_path, x_list, y_list, intensity_threshold=50)
                     min_r, max_r = min(rows), max(rows)
                     min_c, max_c = min(cols), max(cols)
                     
-                    # 병합 그룹 전체 영역
-                    x_start = x_list[min_c]
-                    y_start = y_list[min_r]
-                    x_end = x_list[max_c+1]
-                    y_end = y_list[max_r+1]
-                    x_span = max_c - min_c + 1
-                    y_span = max_r - min_r + 1
-                    
                     # 활성 셀: 그룹의 좌측 상단 셀 (min_r, min_c) 에 대해 셀 객체 생성
                     cell = {
-                        'x_start': x_start,
-                        'y_start': y_start,
-                        'x_length': x_end - x_start,
-                        'y_length': y_end - y_start,
-                        'x_span': x_span,
-                        'y_span': y_span,
-                        'group': current_group_index,
+                        'row': i,
+                        'col': j,
+                        'row-area': (min_r, max_r),
+                        'col-area': (min_c, max_c),
                         'data': None
                     }
                     cells.append(cell)
-                    cell_matrix[min_r][min_c] = cell
+                    cell_matrix[i][j] = cell
                     # 그룹 내 모든 셀의 merge_matrix 값 설정 (merge_matrix 전체 그리드에 반영)
                     for (r, c) in group:
                         merge_matrix[r][c] = current_group_index
