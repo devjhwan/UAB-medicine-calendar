@@ -5,6 +5,7 @@ from core import parse_pdf_to_images, extract_and_save_table_regions, \
                  extract_table_data
 from helper import save_preprocessed_merged_cells, draw_cell_boundaries, \
                    draw_grid_on_image, save_extracted_data_json
+from model.table import Table
 
 def process_page(page_image_path):
     """
@@ -34,27 +35,29 @@ def process_page(page_image_path):
     print(f"[Table Regions] Extracted {len(table_region_paths)} table region images on page {page_num}")
     
     # 각 테이블 영역 별 처리
-    for table_idx, table_region_path in enumerate(table_region_paths[0:1], start=1):
+    for table_idx, table_region_path in enumerate(table_region_paths, start=1):
         print(f"[Page {page_num}, Table {table_idx}] Starting processing")
         # 좌표 추출
         filtered_x, filtered_y = get_filtered_coordinates(table_region_path, threshold=10)
         print(f"[Page {page_num}, Table {table_idx}] Filtered coordinates extracted: x: {filtered_x}, y: {filtered_y}")
         
-        # draw_grid_on_image(table_region_path, filtered_x, filtered_y, page_num, table_idx)
+        table = Table(table_region_path, filtered_x, filtered_y, page_num, table_idx)
+        
+        # draw_grid_on_image(table)
         
         # 셀 그리드 및 병합 셀 구성
-        cell_matrix, cells = generate_table_structure(table_region_path, filtered_x, filtered_y)
+        table = generate_table_structure(table)
         print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
         
-        # draw_cell_boundaries(table_region_path, cell_matrix, page_num, table_idx)
+        draw_cell_boundaries(table)
         
-        # OCR 데이터 추출
-        extract_table_data(table_region_path, cells)
-        print(f"[Page {page_num}, Table {table_idx}] OCR data extraction completed")
+        # # OCR 데이터 추출
+        # extract_table_data(table_region_path, cells)
+        # print(f"[Page {page_num}, Table {table_idx}] OCR data extraction completed")
         
-        # JSON 파일에 추출된 결과 저장
-        save_extracted_data_json(page_num, table_idx, cell_matrix, cells, output_dir="extracted_ocr_data")
-        print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
+        # # JSON 파일에 추출된 결과 저장
+        # save_extracted_data_json(page_num, table_idx, cell_matrix, cells, output_dir="extracted_ocr_data")
+        # print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
         
         # (옵션) 디버깅: 전처리된 셀 이미지 저장
         # save_preprocessed_merged_cells(table_region_path, cell_matrix, output_base_dir="preprocessed")
