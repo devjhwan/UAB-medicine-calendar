@@ -11,7 +11,7 @@ def is_boundary_present(table_img, start_x, start_y, x_length, y_length,
     edges = cv2.Canny(gray, 50, 150)
     
     def search_line(strip, length, min_line_length_ratio=0.7,
-                    hough_threshold=30, max_line_gap=5):
+                    hough_threshold=30, max_line_gap=2):
         min_line_length = int(length * min_line_length_ratio)
         
         lines = cv2.HoughLinesP(strip, 1, np.pi/180,

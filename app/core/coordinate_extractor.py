@@ -115,4 +115,15 @@ def get_filtered_coordinates(image_path, threshold=10,
                         if verify_line_histogram(gray, y, 'horizontal',
                                                    crop_thickness, black_threshold, black_ratio_threshold)]
     
+    min_threshold = 30
+    ylen, xlen = img.shape[:2]
+    if valid_filtered_x[0] > min_threshold:
+        valid_filtered_x.insert(0, 2)
+    if valid_filtered_x[-1] < xlen - min_threshold:
+        valid_filtered_x.append(xlen - 2)
+    if valid_filtered_y[0] > min_threshold:
+        valid_filtered_y.insert(0, 2)
+    if valid_filtered_y[-1] < ylen - min_threshold:
+        valid_filtered_y.append(ylen - 2)
+
     return valid_filtered_x, valid_filtered_y
