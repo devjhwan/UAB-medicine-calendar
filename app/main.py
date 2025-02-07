@@ -49,7 +49,7 @@ def process_page(page_image_path):
         table = generate_table_structure(table)
         print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
         
-        # draw_cell_boundaries(table)
+        draw_cell_boundaries(table)
         
         # # OCR 데이터 추출
         extract_table_data(table)
@@ -74,11 +74,15 @@ def main_pipeline():
     
     all_messages = []
     # 순차적으로 각 페이지 처리
-    for page_path in page_image_paths:
-        msgs = process_page(page_path)
-        for msg in msgs:
-            print(msg)
-        all_messages.extend(msgs)
+    # for page_path in page_image_paths:
+    #     msgs = process_page(page_path)
+    #     for msg in msgs:
+    #         print(msg)
+    #     all_messages.extend(msgs)
+    msgs = process_page(page_image_paths[-1])
+    for msg in msgs:
+        print(msg)
+    all_messages.extend(msgs)
     
     print("\n=== 모든 페이지 및 테이블 작업 완료 ===")
 
