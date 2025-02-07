@@ -43,13 +43,13 @@ def process_page(page_image_path):
         
         table = Table(table_region_path, filtered_x, filtered_y, page_num, table_idx)
         
-        # draw_grid_on_image(table)
+        draw_grid_on_image(table)
         
         # 셀 그리드 및 병합 셀 구성
-        table = generate_table_structure(table)
-        print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
+        # table = generate_table_structure(table)
+        # print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
         
-        draw_cell_boundaries(table)
+        # draw_cell_boundaries(table)
         
         # # OCR 데이터 추출
         # extract_table_data(table_region_path, cells)
