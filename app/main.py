@@ -49,15 +49,15 @@ def process_page(page_image_path):
         table = generate_table_structure(table)
         print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
         
-        draw_cell_boundaries(table)
+        # draw_cell_boundaries(table)
         
         # # OCR 데이터 추출
-        # extract_table_data(table_region_path, cells)
-        # print(f"[Page {page_num}, Table {table_idx}] OCR data extraction completed")
+        extract_table_data(table)
+        print(f"[Page {page_num}, Table {table_idx}] OCR data extraction completed")
         
         # # JSON 파일에 추출된 결과 저장
-        # save_extracted_data_json(page_num, table_idx, cell_matrix, cells, output_dir="extracted_ocr_data")
-        # print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
+        save_extracted_data_json(table, output_dir="extracted_ocr_data")
+        print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
         
         # (옵션) 디버깅: 전처리된 셀 이미지 저장
         # save_preprocessed_merged_cells(table_region_path, cell_matrix, output_base_dir="preprocessed")

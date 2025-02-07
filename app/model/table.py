@@ -10,6 +10,7 @@ class Table():
         self.y_coords = y_coords
         self.n_cols = len(x_coords) - 1
         self.n_rows = len(y_coords) - 1
+        self.cells = []
         self.cell_matrix = [[None for _ in range(self.n_cols)] for _ in range(self.n_rows)]
         self.page_num = page_num
         self.table_idx = table_idx

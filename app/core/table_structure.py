@@ -100,5 +100,6 @@ def generate_table_structure(table: Table):
                 cell = Table.Cell(i, j, x_start, y_start, x_end, y_end, None, \
                                     is_merged=True, area=area, group_idx=current_group_index)
                 current_group_index += 1
+            table.cells.append(cell)
             table.cell_matrix[i][j] = cell
     return table
