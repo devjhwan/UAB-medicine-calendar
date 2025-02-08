@@ -1,3 +1,4 @@
+# app/core/ocr_processing.py
 import cv2
 import numpy as np
 import pytesseract
@@ -7,309 +8,282 @@ from model.table import Table
 
 def crop_border_dynamic(image, extra_crop=2, similarity_threshold=15):
     """
-    이미지의 상하좌우 경계에서 각 방향의 평균 색상이 기준 색상과 비슷한 정도를 측정하여
-    경계선 두께를 구한 후, (두께 + extra_crop) 만큼 잘라낸 이미지를 반환합니다.
+    이미지의 상하좌우 경계에서 배경과 비슷한 영역을 감지하여 잘라냄.
+    픽셀 값이 특정 임계값(similarity_threshold) 이내로 유사한 경우 경계로 판단.
     
     Parameters:
-        image (np.ndarray): 입력 이미지 (컬러 이미지)
-        extra_crop (int): 측정된 경계선 두께에 추가로 잘라낼 픽셀 수 (기본값 2)
-        similarity_threshold (float): 평균 색상의 유사도를 판단하는 임계치 (기본값 15)
-                                      (픽셀 값 차이의 유클리드 거리가 이 값 이하면 동일한 색상으로 판단)
-    
+        image (np.ndarray): 입력 이미지
+        extra_crop (int): 경계 감지 후 추가로 잘라낼 픽셀 수 (기본값 2)
+        similarity_threshold (int): 경계 유사도를 판단하는 임계값 (기본값 15)
+
     Returns:
-        cropped (np.ndarray): 경계선 영역을 잘라낸 결과 이미지
+        np.ndarray: 테두리가 제거된 이미지
     """
     h, w = image.shape[:2]
 
-    # Top border
-    ref_top = np.mean(image[0, :], axis=0)
-    top_thickness = 0
-    for i in range(h):
-        row_mean = np.mean(image[i, :], axis=0)
-        if np.linalg.norm(row_mean - ref_top) < similarity_threshold:
-            top_thickness += 1
-        else:
-            break
+    def border_thickness(ref_color, axis, reverse=False):
+        """
+        경계 두께를 측정하는 내부 함수.
+        """
+        indices = range(h) if axis == 0 else range(w)
+        indices = reversed(indices) if reverse else indices
+        return sum(np.linalg.norm(np.mean(image[i, :] if axis == 0 else image[:, i], axis=0) - ref_color) < similarity_threshold for i in indices)
 
-    # Bottom border
-    ref_bottom = np.mean(image[h - 1, :], axis=0)
-    bottom_thickness = 0
-    for i in range(h - 1, -1, -1):
-        row_mean = np.mean(image[i, :], axis=0)
-        if np.linalg.norm(row_mean - ref_bottom) < similarity_threshold:
-            bottom_thickness += 1
-        else:
-            break
+    top_crop = min(border_thickness(np.mean(image[0, :], axis=0), 0) + extra_crop, h)
+    bottom_crop = max(h - (border_thickness(np.mean(image[-1, :], axis=0), 0, True) + extra_crop), 0)
+    left_crop = min(border_thickness(np.mean(image[:, 0], axis=0), 1) + extra_crop, w)
+    right_crop = max(w - (border_thickness(np.mean(image[:, -1], axis=0), 1, True) + extra_crop), 0)
 
-    # Left border
-    ref_left = np.mean(image[:, 0], axis=0)
-    left_thickness = 0
-    for j in range(w):
-        col_mean = np.mean(image[:, j], axis=0)
-        if np.linalg.norm(col_mean - ref_left) < similarity_threshold:
-            left_thickness += 1
-        else:
-            break
-
-    # Right border
-    ref_right = np.mean(image[:, w - 1], axis=0)
-    right_thickness = 0
-    for j in range(w - 1, -1, -1):
-        col_mean = np.mean(image[:, j], axis=0)
-        if np.linalg.norm(col_mean - ref_right) < similarity_threshold:
-            right_thickness += 1
-        else:
-            break
-
-    # 각 방향에서 (경계선 두께 + extra_crop) 만큼 잘라낼 영역 계산
-    top_crop = top_thickness + extra_crop
-    bottom_crop = h - (bottom_thickness + extra_crop)
-    left_crop = left_thickness + extra_crop
-    right_crop = w - (right_thickness + extra_crop)
-
-    # 범위 조정 (이미지 범위를 벗어나지 않도록)
-    top_crop = min(top_crop, h)
-    bottom_crop = max(bottom_crop, 0)
-    left_crop = min(left_crop, w)
-    right_crop = max(right_crop, 0)
-
-    cropped = image[top_crop:bottom_crop, left_crop:right_crop]
-    return cropped
+    return image[top_crop:bottom_crop, left_crop:right_crop]
 
 def preprocess_cell_image(cell_img):
+    """
+    OCR 성능 향상을 위해 셀 이미지를 전처리하는 함수.
+    1. 테두리 자르기 (crop_border_dynamic)
+    2. 그레이스케일 변환
+    3. 크기 확대 (OCR 인식률 개선)
+    4. 정규화 후 이진화 (흑백 변환)
+    5. 배경이 검은색이 많으면 반전
+    6. 모폴로지 변환으로 노이즈 제거
+
+    Parameters:
+        cell_img (np.ndarray): 입력 셀 이미지
+
+    Returns:
+        np.ndarray: 전처리된 바이너리 이미지
+    """
     cropped = crop_border_dynamic(cell_img)
-
     gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
-    h, w = gray.shape
-    resized_gray = cv2.resize(gray, (int(w * 2), int(h * 2)), interpolation=cv2.INTER_LINEAR)
+    resized = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
+    _, binary = cv2.threshold(cv2.normalize(resized, None, 0, 255, cv2.NORM_MINMAX), 127, 255, cv2.THRESH_BINARY_INV)
     
-    normalized = cv2.normalize(resized_gray, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
-    _, binary = cv2.threshold(normalized, 127, 255, cv2.THRESH_BINARY_INV)
-
-    black_pixels = np.sum(binary == 0)
-    white_pixels = np.sum(binary == 255)
-    if black_pixels > white_pixels:
+    if np.sum(binary == 0) > np.sum(binary == 255):
         binary = cv2.bitwise_not(binary)
-
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    final_image = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
     
-    # h, w = rotated.shape
-    # final_image = cv2.resize(rotated, (int(w / 2), int(h / 2)), interpolation=cv2.INTER_LINEAR)
-    return final_image
+    return cv2.morphologyEx(binary, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
 
-def get_box_gap(boxA, boxB):
-    # boxA, boxB: (x, y, w, h)
-    x1, y1, w1, h1 = boxA
-    x2, y2, w2, h2 = boxB
-    if x1 + w1 < x2:
-        gap_x = x2 - (x1 + w1)
-    elif x2 + w2 < x1:
-        gap_x = x1 - (x2 + w2)
-    else:
-        gap_x = 0
+def crop_masked_area(x_coords, y_coords, cell: Table.Cell, cell_img):
+    """
+    병합된 셀에서 원래 각 개별 셀의 영역을 마스킹하여 OCR 성능 향상.
 
-    if y1 + h1 < y2:
-        gap_y = y2 - (y1 + h1)
-    elif y2 + h2 < y1:
-        gap_y = y1 - (y2 + h2)
-    else:
-        gap_y = 0
+    Parameters:
+        x_coords (list): x 좌표 리스트
+        y_coords (list): y 좌표 리스트
+        cell (Table.Cell): OCR 대상 셀 객체
+        cell_img (np.ndarray): 크롭된 셀 이미지
 
-    return gap_x, gap_y
+    Returns:
+        np.ndarray: 마스킹된 이미지
+    """
+    h, w = cell_img.shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
+    ox, oy, extra = cell.x_start, cell.y_start, 5
 
-def union_box(boxA, boxB):
-    x1, y1, w1, h1 = boxA
-    x2, y2, w2, h2 = boxB
-    new_x = min(x1, x2)
-    new_y = min(y1, y2)
-    new_x2 = max(x1 + w1, x2 + w2)
-    new_y2 = max(y1 + h1, y2 + h2)
-    return (new_x, new_y, new_x2 - new_x, new_y2 - new_y)
+    for row, col in cell.unmerged_coords:
+        left, right = max(x_coords[col] - ox - extra, 0), min(x_coords[col+1] - ox + extra, w)
+        top, bottom = max(y_coords[row] - oy - extra, 0), min(y_coords[row+1] - oy + extra, h)
+        cv2.rectangle(mask, (left, top), (right, bottom), 255, -1)
+
+    return cv2.inpaint(cell_img, mask, 1, cv2.INPAINT_TELEA)
+
+def should_rotate(image, hough_threshold=30, min_line_length_ratio=0.7, max_line_gap=5):
+    """
+    이미지 내에서 주요 선들을 분석하여 회전이 필요한지 판단.
+    
+    1. 허프 변환(Hough Transform)을 사용하여 직선을 감지.
+    2. 수직선(45도 이상)과 수평선(45도 이하)의 개수를 비교.
+    3. 수직선이 더 많으면 회전이 필요하다고 판단하여 True 반환.
+
+    Parameters:
+        image (np.ndarray): 입력 이미지 (이진화된 테이블 이미지)
+        hough_threshold (int): 허프 변환의 최소 투표 개수 (기본값 30)
+        min_line_length_ratio (float): 감지할 최소 선 길이 (기본값 0.7, 이미지 높이의 70%)
+        max_line_gap (int): 선의 최대 끊긴 거리 (기본값 5)
+
+    Returns:
+        bool: 이미지가 회전이 필요하면 True, 그렇지 않으면 False
+    """
+    lines = cv2.HoughLinesP(image, 1, np.pi/180, threshold=hough_threshold,
+                            minLineLength=int(image.shape[0] * min_line_length_ratio), maxLineGap=max_line_gap)
+
+    if not lines:
+        return False  # 직선이 감지되지 않으면 회전 불필요
+
+    count_vertical, count_horizontal = 0, 0
+
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        angle = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))  # 선의 각도 계산
+
+        if angle > 45:
+            count_vertical += 1  # 수직선 개수 증가
+        else:
+            count_horizontal += 1  # 수평선 개수 증가
+
+    return count_vertical > count_horizontal  # 수직선이 많으면 회전 필요
 
 def merge_boxes(boxes, threshold=10):
-    # 더 이상 병합할 수 없을 때까지 반복
+    """
+    가까운 바운딩 박스를 병합.
+
+    Parameters:
+        boxes (list): [(x, y, w, h), ...] 형식의 박스 리스트
+        threshold (int): 병합할 최대 거리 (기본값 10 픽셀)
+
+    Returns:
+        list: 병합된 박스 리스트
+    """
     changed = True
     while changed:
-        changed = False
-        new_boxes = []
-        used = [False] * len(boxes)
-        for i in range(len(boxes)):
-            if used[i]:
+        changed, new_boxes, used = False, [], [False] * len(boxes)
+
+        for i, box_a in enumerate(boxes):
+            if used[i]:  # 이미 병합됨
                 continue
-            box_a = boxes[i]
-            for j in range(i + 1, len(boxes)):
-                if used[j]:
+
+            for j, box_b in enumerate(boxes[i+1:], start=i+1):
+                if used[j]:  
                     continue
-                box_b = boxes[j]
-                gap_x, gap_y = get_box_gap(box_a, box_b)
+
+                # 박스 간 거리 계산
+                gap_x = max(0, box_b[0] - (box_a[0] + box_a[2])) if box_a[0] < box_b[0] else max(0, box_a[0] - (box_b[0] + box_b[2]))
+                gap_y = max(0, box_b[1] - (box_a[1] + box_a[3])) if box_a[1] < box_b[1] else max(0, box_a[1] - (box_b[1] + box_b[3]))
+
                 if gap_x < threshold and gap_y < threshold:
-                    box_a = union_box(box_a, box_b)
-                    used[j] = True
-                    changed = True
-            new_boxes.append(box_a)
-        boxes = new_boxes
+                    # 박스 병합
+                    box_a = (
+                        min(box_a[0], box_b[0]),
+                        min(box_a[1], box_b[1]),
+                        max(box_a[0] + box_a[2], box_b[0] + box_b[2]) - min(box_a[0], box_b[0]),
+                        max(box_a[1] + box_a[3], box_b[1] + box_b[3]) - min(box_a[1], box_b[1])
+                    )
+                    used[j], changed = True, True  # 병합된 박스 표시
+
+            new_boxes.append(box_a)  
+
+        boxes = new_boxes  
+
     return boxes
 
 def find_bounding_boxes(binary_img, merge_threshold=10):
-    contours, _ = cv2.findContours(binary_img.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    """
+    바이너리 이미지에서 개별 글자 또는 객체의 바운딩 박스를 찾고 병합.
     
-    h_img, w_img = binary_img.shape[:2]
+    1. 윤곽선(contour) 검출을 통해 객체 영역을 찾음.
+    2. 예외 처리: 테이블 전체 크기와 거의 같은 큰 박스는 제외.
+    3. 서로 가까운 바운딩 박스를 병합하여 하나의 박스로 합침.
+    4. 최종 바운딩 박스를 Y 좌표 기준 정렬 (같은 줄에 있는 글자들이 그룹화되도록).
+
+    Parameters:
+        binary_img (np.ndarray): 입력 이진화 이미지 (OCR 전처리를 위한 바이너리 이미지)
+        merge_threshold (int): 병합할 최대 거리 (기본값 10 픽셀)
+
+    Returns:
+        list: [(x, y, w, h), ...] 형식의 바운딩 박스 리스트
+    """
+    contours, _ = cv2.findContours(binary_img, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    h, w = binary_img.shape[:2]
+
     boxes = []
+
     for cnt in contours:
         x, y, w, h = cv2.boundingRect(cnt)
-        # 예외 박스 제거: 좌상단이 0에 가깝고 우하단이 이미지 크기에 가까운 박스
-        if x <= 2 and y <= 2 and (x + w) >= (w_img - 2) and (y + h) >= (h_img - 2):
+
+        # 예외 처리: 이미지 전체를 차지하는 박스는 무시
+        if x <= 2 and y <= 2 and (x + w) >= (w - 2) and (y + h) >= (h - 2):
             continue
-        boxes.append((x, y, w, h))
-    
-    # 예외 박스 제거 후에 가까운 박스들 병합
-    merged_boxes = merge_boxes(boxes, threshold=merge_threshold)
-    
-    # merged_boxes를 좌측 상단 기준으로 정렬
-    # 비슷한 높이(즉, y 좌표 차이가 10px 이하)라면 왼쪽(x 값)이 작은 것이 앞으로 오고,
-    # 그렇지 않다면 y 값이 작은(높은) 것이 먼저 오도록 정렬합니다.
-    def box_compare(a, b):
-        y_threshold = 10
-        # a, b: (x, y, w, h)
-        if abs(a[1] - b[1]) <= y_threshold:
-            return a[0] - b[0]
-        else:
-            return a[1] - b[1]
-    
-    sorted_boxes = sorted(merged_boxes, key=functools.cmp_to_key(box_compare))
-    
-    # img_color = cv2.cvtColor(binary_img, cv2.COLOR_GRAY2BGR)
-    # for box in sorted_boxes:
-    #     x, y, w, h = box
-    #     cv2.rectangle(img_color, (x, y), (x + w, y + h), (0, 255, 0), 1)
-    
-    # cv2.imwrite("bounding_box.png", img_color)
-    return sorted_boxes
 
-def should_rotate(image, hough_threshold=30, min_line_length_ratio=0.7, max_line_gap=5):
-    lines = cv2.HoughLinesP(image, 1, np.pi/180,
-                            threshold=hough_threshold,
-                            minLineLength=int(image.shape[0] * min_line_length_ratio),
-                            maxLineGap=max_line_gap)
-    if lines is None:
-        return False
+        boxes.append((x, y, w, h))  # 바운딩 박스 추가
 
-    count_vertical = 0
-    count_horizontal = 0
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        angle = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
-        if angle > 45:
-            count_vertical += 1
-        else:
-            count_horizontal += 1
+    # 가까운 바운딩 박스를 병합
+    merged_boxes = merge_boxes(boxes, merge_threshold)
 
-    return count_vertical > count_horizontal
+    # 박스를 Y 좌표 기준 정렬 (동일한 줄에 있는 글자들을 인식하기 위함)
+    return sorted(merged_boxes, key=functools.cmp_to_key(lambda a, b: a[0] - b[0] if abs(a[1] - b[1]) <= 10 else a[1] - b[1]))
 
-def crop_masked_area(x_coords, y_coords, cell: Table.Cell, cell_img):
-    mask = np.zeros(cell_img.shape[:2], dtype=np.uint8)
-    h, w = cell_img.shape[:2]
-    extra, ox, oy = 5, cell.x_start, cell.y_start
-    for row, col in cell.unmerged_coords:
-        left  = max(x_coords[col]   - ox - extra, 0)
-        right = min(x_coords[col+1] - ox + extra, w)
-        top   = max(y_coords[row]   - oy - extra, 0)
-        bottom= min(y_coords[row+1] - oy + extra, h)
-        cv2.rectangle(mask, (left, top), (right, bottom), 255, -1)
-    return cv2.inpaint(cell_img, mask, 1, cv2.INPAINT_TELEA)
 
 def ocr_cell(table: Table, cell: Table.Cell, original_img):
     """
-    Table.Cell 객체의 속성(x_start, y_start, x_end, y_end)을 이용해 셀 영역을 크롭하고,
-    전처리 및 OCR 수행 후 텍스트를 반환합니다.
+    셀 이미지를 OCR로 처리하여 텍스트를 추출.
+    1. 셀을 크롭하고 병합된 경우 마스킹 적용
+    2. OCR 성능을 높이기 위해 이미지 전처리
+    3. 회전이 필요한 경우 자동으로 감지하여 보정
+    4. 최종 OCR을 실행하여 텍스트를 반환
+
+    Parameters:
+        table (Table): 테이블 객체
+        cell (Table.Cell): OCR을 수행할 개별 셀
+        original_img (np.ndarray): 원본 테이블 이미지
+
+    Returns:
+        str: OCR로 추출된 텍스트
     """
-    # 셀 영역 크롭
-    x, y = cell.x_start, cell.y_start
-    w = cell.x_end - cell.x_start
-    h = cell.y_end - cell.y_start
+    x, y, w, h = cell.x_start, cell.y_start, cell.x_end - cell.x_start, cell.y_end - cell.y_start
     cell_img = original_img[y:y+h, x:x+w]
     
     if cell.is_merged and cell.unmerged_coords:
-        cell_img = crop_masked_area(table.x_coords, table.y_coords, cell, cell_img) 
-    #cv2.imwrite("masked.png", cell_img)
-    
+        cell_img = crop_masked_area(table.x_coords, table.y_coords, cell, cell_img)
+
     preprocessed = preprocess_cell_image(cell_img)
-    #cv2.imwrite("image.png", preprocessed)
-    
-    _, counts = np.unique(preprocessed, return_counts=True)
-    if counts.max() / preprocessed.size > 0.995:
+
+    if np.max(np.unique(preprocessed, return_counts=True)[1]) / preprocessed.size > 0.995:
         return ""
-    
-    is_rotated = False
-    if cell.is_merged:
-        min_r, max_r  = cell.area[0]
-        y_span = max_r - min_r + 1
-        if y_span > 2 and should_rotate(preprocessed):
-            preprocessed = cv2.rotate(preprocessed, cv2.ROTATE_90_CLOCKWISE)
-            is_rotated = True
-    
+
+    max_r, min_r = cell.area[0][1], cell.area[0][0]
+    y_span = max_r - min_r + 1
+    is_rotated = cell.is_merged and y_span > 2 and should_rotate(preprocessed)
+
+    if is_rotated:
+        preprocessed = cv2.rotate(preprocessed, cv2.ROTATE_90_CLOCKWISE)
+
     final_boxes = find_bounding_boxes(preprocessed, merge_threshold=20)
     
     if is_rotated and any(bh > bw for _, _, bw, bh in final_boxes):
         preprocessed = cv2.rotate(preprocessed, cv2.ROTATE_90_COUNTERCLOCKWISE)
         final_boxes = find_bounding_boxes(preprocessed, merge_threshold=20)
-    
-    #cv2.imwrite("image.png", preprocessed)
-    
+
     config = '--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-'
-    h_img, w_img = preprocessed.shape[:2]
-    all_texts = []
-    
-    for box in final_boxes:
-        bx, by, bw, bh = box
-        margin = 3
-        # 박스 크기에 좌우상하 3px씩 패딩 추가 (이미지 범위 내로 제한)
-        x1 = max(bx - margin, 0)
-        y1 = max(by - margin, 0)
-        x2 = min(bx + bw + margin, w_img)
-        y2 = min(by + bh + margin, h_img)
-        
-        cropped_box = preprocessed[y1:y2, x1:x2]
-        
-        #cv2.imwrite("image2.png", cropped_box)
-        
-        text = pytesseract.image_to_string(cropped_box, config=config)
-        if text:
-            all_texts.append(text.strip())
-    
-    final_text = " ".join(all_texts)
-    return final_text
+    extracted_texts = []
+
+    for bx, by, bw, bh in final_boxes:
+        x1 = max(bx - 3, 0)
+        y1 = max(by - 3, 0)
+        x2 = min(bx + bw + 3, preprocessed.shape[1])
+        y2 = min(by + bh + 3, preprocessed.shape[0])
+
+        if x2 > x1 and y2 > y1:
+            cropped_box = preprocessed[y1:y2, x1:x2]
+            text = pytesseract.image_to_string(cropped_box, config=config).strip()
+            if text:
+                extracted_texts.append(text)
+
+    return " ".join(extracted_texts)
 
 def print_progress(progress, bar_length=50):
     """
-    progress 값(0~100)에 따라 progress bar를 갱신합니다.
+    진행 상태를 프로그레스 바 형태로 출력.
     """
     filled_length = int(bar_length * progress / 100)
-    bar = '#' * filled_length + '-' * (bar_length - filled_length)
-    # carriage return(\r)으로 같은 줄에 덮어쓰기
-    print(f"\rProgress: |{bar}| {progress}%", end="", flush=True)
+    print(f"\rProgress: |{'#' * filled_length}{'-' * (bar_length - filled_length)}| {progress}%", end="", flush=True)
+
 
 def extract_table_data(table: Table):
     """
-    Table 객체의 모든 셀에 대해 OCR 수행 후, 해당 셀의 data 속성에 텍스트를 저장하고,
-    진행률을 애니메이션 효과와 함께 터미널에 표시합니다.
+    테이블의 모든 셀을 OCR로 처리하여 데이터를 추출.
+    진행률을 표시하면서 작업을 수행.
     """
     total = len(table.cells)
     current_progress = 0
+    
     for idx, cell in enumerate(table.cells):
         try:
-            text = ocr_cell(table, cell, table.table_image)
-        except Exception as e:
-            text = ""
-        cell.data = text
+            cell.data = ocr_cell(table, cell, table.table_image)
+        except:
+            cell.data = ""
 
-        # 목표 진행률 계산 (0~100)
         target_progress = int((idx + 1) / total * 100)
-        # 현재 진행률부터 목표 진행률까지 1씩 증가시키며 애니메이션 효과
         for p in range(current_progress + 1, target_progress + 1):
             print_progress(p)
-            time.sleep(0.02)  # 애니메이션 속도 조절 가능
+            time.sleep(0.02)
         current_progress = target_progress
-    print()  # 작업 완료 후 줄바꿈
-
+    print()

@@ -14,13 +14,12 @@ def save_extracted_data_json(table: Table, output_dir="extracted_ocr_data"):
     for row in table.cell_matrix:
         row_data = []
         for cell in row:
-            if cell is not None and cell.data is not "":
+            if cell is not None and cell.data != "":
                 cell_data = {
                     "row": cell.row,
                     "col": cell.col,
                     "data": cell.data,
-                    "is_merged": cell.is_merged,
-                    "merge_cols": cell.merge_cols
+                    "is_merged": cell.is_merged
                 }
             else:
                 cell_data = None

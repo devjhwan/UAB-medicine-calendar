@@ -1,4 +1,4 @@
-# pdf_extractor.py
+# app/core/pdf_extractor.py
 import os
 from pdf2image import convert_from_path
 
@@ -17,10 +17,3 @@ def parse_pdf_to_images(pdf_path, image_dir='images', dpi_value=300):
         print(f"Saved PDF page image: {output_path}")
         output_paths.append(output_path)
     return output_paths
-
-# 예시 사용
-if __name__ == '__main__':
-    pdf_path = 'your_document.pdf'
-    paths = parse_pdf_to_images(pdf_path, image_dir='images', dpi_value=300)
-    print("저장된 이미지 파일 경로:")
-    print(paths)
