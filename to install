@@ -1,4 +1,0 @@
-pip install pdf2image
-- sudo apt-get install poppler-utils
-pip install opencv-python
-pip install pytesseract
