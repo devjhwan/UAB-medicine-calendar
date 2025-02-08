@@ -207,7 +207,19 @@ def should_rotate(image, hough_threshold=30, min_line_length_ratio=0.7, max_line
 
     return count_vertical > count_horizontal
 
-def ocr_cell(cell: Table.Cell, original_img):
+def crop_masked_area(x_coords, y_coords, cell: Table.Cell, cell_img):
+    mask = np.zeros(cell_img.shape[:2], dtype=np.uint8)
+    h, w = cell_img.shape[:2]
+    extra, ox, oy = 5, cell.x_start, cell.y_start
+    for row, col in cell.unmerged_coords:
+        left  = max(x_coords[col]   - ox - extra, 0)
+        right = min(x_coords[col+1] - ox + extra, w)
+        top   = max(y_coords[row]   - oy - extra, 0)
+        bottom= min(y_coords[row+1] - oy + extra, h)
+        cv2.rectangle(mask, (left, top), (right, bottom), 255, -1)
+    return cv2.inpaint(cell_img, mask, 1, cv2.INPAINT_TELEA)
+
+def ocr_cell(table: Table, cell: Table.Cell, original_img):
     """
     Table.Cell 객체의 속성(x_start, y_start, x_end, y_end)을 이용해 셀 영역을 크롭하고,
     전처리 및 OCR 수행 후 텍스트를 반환합니다.
@@ -217,6 +229,10 @@ def ocr_cell(cell: Table.Cell, original_img):
     w = cell.x_end - cell.x_start
     h = cell.y_end - cell.y_start
     cell_img = original_img[y:y+h, x:x+w]
+    
+    if cell.is_merged and cell.unmerged_coords:
+        cell_img = crop_masked_area(table.x_coords, table.y_coords, cell, cell_img) 
+    #cv2.imwrite("masked.png", cell_img)
     
     preprocessed = preprocess_cell_image(cell_img)
     #cv2.imwrite("image.png", preprocessed)
@@ -283,7 +299,7 @@ def extract_table_data(table: Table):
     current_progress = 0
     for idx, cell in enumerate(table.cells):
         try:
-            text = ocr_cell(cell, table.table_image)
+            text = ocr_cell(table, cell, table.table_image)
         except Exception as e:
             text = ""
         cell.data = text

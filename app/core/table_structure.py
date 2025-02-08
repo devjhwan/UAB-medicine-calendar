@@ -106,6 +106,19 @@ def group_consecutive_pairs(pairs):
         groups.append((row, (start_col, end_col)))
     
     return groups
+
+def subtract_groups_from_area(area, groups):
+    """
+    area: ((min_r, max_r), (min_c, max_c))
+    groups: [(r1, c1), (r2, c2), ..., (rn, cn)]
+    
+    반환: area 내에서 groups에 포함되지 않은 좌표들을 [(r, c), ...] 형식으로 리스트로 반환.
+    """
+    (min_r, max_r), (min_c, max_c) = area
+    groups_set = set(groups)
+    return [(r, c) for r in range(min_r, max_r + 1)
+                    for c in range(min_c, max_c + 1)
+                    if (r, c) not in groups_set]
         
 def generate_table_structure(table: Table):
     visited = [[False for _ in range(table.n_cols)] for _ in range(table.n_rows)]
@@ -137,8 +150,10 @@ def generate_table_structure(table: Table):
                 
                 area = ((min_r, max_r), (min_c, max_c))
                 compressed_group = group_consecutive_pairs(group)
+                substracted_area = subtract_groups_from_area(area, group)
                 cell = Table.Cell(i, j, x_start, y_start, x_end, y_end, None, \
-                                    is_merged=True, area=area, merge_cols=compressed_group)
+                                    is_merged=True, area=area, merge_cols=compressed_group,
+                                    unmerged_coords=substracted_area)
             table.cells.append(cell)
             table.cell_matrix[i][j] = cell
     return table

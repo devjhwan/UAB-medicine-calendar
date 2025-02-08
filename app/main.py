@@ -48,17 +48,17 @@ def process_page(page_image_path):
         
         # draw_cell_boundaries(table)
         
-        # # OCR 데이터 추출
+        # OCR 데이터 추출
         extract_table_data(table)
         print(f"[Page {page_num}, Table {table_idx}] OCR data extraction completed")
         
         # # JSON 파일에 추출된 결과 저장
-        save_extracted_data_json(table, output_dir="extracted_ocr_data")
-        print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
+        # save_extracted_data_json(table, output_dir="extracted_ocr_data")
+        # print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
         
         messages.append(f"Page {page_num}, Table {table_idx} processed")
     
-    return messages
+    return table, messages
 
 def main_pipeline():
     print("Starting PDF to image conversion...")
@@ -66,17 +66,18 @@ def main_pipeline():
     page_image_paths = parse_pdf_to_images(pdf_path, image_dir='images', dpi_value=300)
     print(f"PDF to image conversion completed: {len(page_image_paths)} pages extracted\n")
     
+    all_tables = []
     all_messages = []
     # 순차적으로 각 페이지 처리
     for page_path in page_image_paths:
-        msgs = process_page(page_path)
+        table, msgs = process_page(page_path)
         for msg in msgs:
             print(msg)
+        all_tables.append(table)
         all_messages.extend(msgs)
-    # msgs = process_page(page_image_paths[0])
-    # for msg in msgs:
-    #     print(msg)
-    # all_messages.extend(msgs)
+        
+    # 데이터 가공
+    process_data_as_calendar_csv(all_tables)
     
     print("\n=== 모든 페이지 및 테이블 작업 완료 ===")
 
