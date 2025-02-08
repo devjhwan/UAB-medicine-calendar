@@ -4,34 +4,6 @@ import cv2
 from core.ocr_processing import preprocess_cell_image
 from model.table import Table
 
-def save_preprocessed_merged_cells(image_path, cell_matrix, output_base_dir="preprocessed"):
-    """
-    주어진 원본 이미지와 셀 행렬(cell_matrix)을 이용해 각 활성 셀(병합 셀의 좌측 상단 셀)에 해당하는
-    전체 병합 영역을 크롭한 후, 전처리(preprocess_cell_image)를 적용하여 디버깅용 이미지로 저장한다.
-    
-    저장 경로는 "preprocessed/{row}/{col}.png" 형식이며, None인 (병합 영역 내 하위 셀) 부분은 건너뛴다.
-    """
-    original_img = cv2.imread(image_path)
-    if original_img is None:
-        raise ValueError("이미지 파일을 찾을 수 없습니다: " + image_path)
-    
-    for i, row in enumerate(cell_matrix):
-        for j, cell in enumerate(row):
-            if cell is None:
-                continue
-            x_start = cell['x_start']
-            y_start = cell['y_start']
-            x_length = cell['x_length']
-            y_length = cell['y_length']
-            cropped_cell = original_img[y_start:y_start+y_length, x_start:x_start+x_length]
-            preprocessed_img = preprocess_cell_image(cropped_cell, crop_px=4, rescale_factor=2)
-            
-            row_dir = os.path.join(output_base_dir, f"{i}")
-            os.makedirs(row_dir, exist_ok=True)
-            output_path = os.path.join(row_dir, f"{j}.png")
-            cv2.imwrite(output_path, preprocessed_img)
-            print(f"Saved preprocessed cell at row {i}, col {j}: {output_path}")
-
 def draw_cell_boundaries(table: Table, output_dir="debug_boundaries"):
     """
     주어진 Table 객체를 이용하여,  

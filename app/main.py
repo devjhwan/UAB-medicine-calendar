@@ -1,10 +1,7 @@
 # main.py
 import os
-from core import parse_pdf_to_images, extract_and_save_table_regions, \
-                 get_filtered_coordinates, generate_table_structure, \
-                 extract_table_data
-from helper import save_preprocessed_merged_cells, draw_cell_boundaries, \
-                   draw_grid_on_image, save_extracted_data_json
+from core import *
+from helper import *
 from model.table import Table
 
 def process_page(page_image_path):
@@ -49,7 +46,7 @@ def process_page(page_image_path):
         table = generate_table_structure(table)
         print(f"[Page {page_num}, Table {table_idx}] Cell grid generated")
         
-        draw_cell_boundaries(table)
+        # draw_cell_boundaries(table)
         
         # # OCR 데이터 추출
         extract_table_data(table)
@@ -58,9 +55,6 @@ def process_page(page_image_path):
         # # JSON 파일에 추출된 결과 저장
         save_extracted_data_json(table, output_dir="extracted_ocr_data")
         print(f"[Page {page_num}, Table {table_idx}] JSON data saved")
-        
-        # (옵션) 디버깅: 전처리된 셀 이미지 저장
-        # save_preprocessed_merged_cells(table_region_path, cell_matrix, output_base_dir="preprocessed")
         
         messages.append(f"Page {page_num}, Table {table_idx} processed")
     
@@ -74,15 +68,15 @@ def main_pipeline():
     
     all_messages = []
     # 순차적으로 각 페이지 처리
-    # for page_path in page_image_paths:
-    #     msgs = process_page(page_path)
-    #     for msg in msgs:
-    #         print(msg)
-    #     all_messages.extend(msgs)
-    msgs = process_page(page_image_paths[-1])
-    for msg in msgs:
-        print(msg)
-    all_messages.extend(msgs)
+    for page_path in page_image_paths:
+        msgs = process_page(page_path)
+        for msg in msgs:
+            print(msg)
+        all_messages.extend(msgs)
+    # msgs = process_page(page_image_paths[0])
+    # for msg in msgs:
+    #     print(msg)
+    # all_messages.extend(msgs)
     
     print("\n=== 모든 페이지 및 테이블 작업 완료 ===")
 

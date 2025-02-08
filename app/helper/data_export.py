@@ -4,7 +4,7 @@ from model.table import Table
 
 def save_extracted_data_json(table: Table, output_dir="extracted_ocr_data"):
     """
-    Table 인스턴스의 cell_matrix에서 각 셀의 row, col, data, is_merged, group_idx를
+    Table 인스턴스의 cell_matrix에서 각 셀의 row, col, data, is_merged, merge_cols를
     추출하여 JSON 파일로 저장합니다.
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -14,13 +14,13 @@ def save_extracted_data_json(table: Table, output_dir="extracted_ocr_data"):
     for row in table.cell_matrix:
         row_data = []
         for cell in row:
-            if cell is not None:
+            if cell is not None and cell.data is not "":
                 cell_data = {
                     "row": cell.row,
                     "col": cell.col,
                     "data": cell.data,
                     "is_merged": cell.is_merged,
-                    "group_idx": cell.group_idx
+                    "merge_cols": cell.merge_cols
                 }
             else:
                 cell_data = None

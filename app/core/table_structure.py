@@ -66,10 +66,49 @@ def check_merged_cells(table: Table, i, j, visited):
         visited[r][c] = True
         group.append((r, c))
     return group
+
+def group_consecutive_pairs(pairs):
+    """
+    (row, col) 쌍 리스트를 정렬한 후, 같은 행에서 연속하는 열을 그룹화하여
+    (row, (start_col, end_col)) 형태의 리스트로 반환합니다.
+    
+    예)
+        Input: [(2,1),(2,2),(2,3),(2,5),(2,6),(3,2),(3,3)]
+        Output: [(2, (1, 3)), (2, (5, 6)), (3, (2, 3))]
+    """
+    # 첫 번째 원소(행) 기준, 그 다음 열 기준으로 정렬
+    pairs_sorted = sorted(pairs, key=lambda x: (x[0], x[1]))
+    
+    groups = []
+    current_group = []
+    
+    for pair in pairs_sorted:
+        if not current_group:
+            current_group.append(pair)
+        else:
+            last = current_group[-1]
+            # 같은 행이고 열이 연속이면 그룹에 추가
+            if pair[0] == last[0] and pair[1] == last[1] + 1:
+                current_group.append(pair)
+            else:
+                # 현재 그룹 마무리: (row, (start, end)) 형식으로 저장
+                row = current_group[0][0]
+                start_col = current_group[0][1]
+                end_col = current_group[-1][1]
+                groups.append((row, (start_col, end_col)))
+                # 새 그룹 시작
+                current_group = [pair]
+    # 마지막 그룹 처리
+    if current_group:
+        row = current_group[0][0]
+        start_col = current_group[0][1]
+        end_col = current_group[-1][1]
+        groups.append((row, (start_col, end_col)))
+    
+    return groups
         
 def generate_table_structure(table: Table):
     visited = [[False for _ in range(table.n_cols)] for _ in range(table.n_rows)]
-    current_group_index = 1
     for i in range(table.n_rows):
         for j in range(table.n_cols):
             if visited[i][j]:
@@ -97,9 +136,9 @@ def generate_table_structure(table: Table):
                 y_end = table.y_coords[max_r+1]
                 
                 area = ((min_r, max_r), (min_c, max_c))
+                compressed_group = group_consecutive_pairs(group)
                 cell = Table.Cell(i, j, x_start, y_start, x_end, y_end, None, \
-                                    is_merged=True, area=area, group_idx=current_group_index)
-                current_group_index += 1
+                                    is_merged=True, area=area, merge_cols=compressed_group)
             table.cells.append(cell)
             table.cell_matrix[i][j] = cell
     return table

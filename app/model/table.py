@@ -17,7 +17,7 @@ class Table():
     
     class Cell():
         def __init__(self, row, col, x_start, y_start, x_end, y_end, data, \
-                        is_merged=False, area=None, group_idx=0):
+                        is_merged=False, area=None, merge_cols=[]):
             self.row = row
             self.col = col
             self.x_start = x_start
@@ -27,4 +27,4 @@ class Table():
             self.data = data
             self.is_merged = is_merged
             self.area = area
-            self.group_idx = group_idx
+            self.merge_cols = merge_cols

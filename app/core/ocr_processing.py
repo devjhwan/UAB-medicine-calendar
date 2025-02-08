@@ -151,7 +151,7 @@ def merge_boxes(boxes, threshold=10):
         boxes = new_boxes
     return boxes
 
-def draw_and_merge_bounding_boxes(binary_img, merge_threshold=10):
+def find_bounding_boxes(binary_img, merge_threshold=10):
     contours, _ = cv2.findContours(binary_img.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     
     h_img, w_img = binary_img.shape[:2]
@@ -178,6 +178,13 @@ def draw_and_merge_bounding_boxes(binary_img, merge_threshold=10):
             return a[1] - b[1]
     
     sorted_boxes = sorted(merged_boxes, key=functools.cmp_to_key(box_compare))
+    
+    # img_color = cv2.cvtColor(binary_img, cv2.COLOR_GRAY2BGR)
+    # for box in sorted_boxes:
+    #     x, y, w, h = box
+    #     cv2.rectangle(img_color, (x, y), (x + w, y + h), (0, 255, 0), 1)
+    
+    # cv2.imwrite("bounding_box.png", img_color)
     return sorted_boxes
 
 def should_rotate(image, hough_threshold=30, min_line_length_ratio=0.7, max_line_gap=5):
@@ -212,12 +219,27 @@ def ocr_cell(cell: Table.Cell, original_img):
     cell_img = original_img[y:y+h, x:x+w]
     
     preprocessed = preprocess_cell_image(cell_img)
+    #cv2.imwrite("image.png", preprocessed)
     
     _, counts = np.unique(preprocessed, return_counts=True)
-    if counts.max() / preprocessed.size > 0.98:
+    if counts.max() / preprocessed.size > 0.995:
         return ""
     
-    final_boxes = draw_and_merge_bounding_boxes(preprocessed, merge_threshold=15)
+    is_rotated = False
+    if cell.is_merged:
+        min_r, max_r  = cell.area[0]
+        y_span = max_r - min_r + 1
+        if y_span > 2 and should_rotate(preprocessed):
+            preprocessed = cv2.rotate(preprocessed, cv2.ROTATE_90_CLOCKWISE)
+            is_rotated = True
+    
+    final_boxes = find_bounding_boxes(preprocessed, merge_threshold=20)
+    
+    if is_rotated and any(bh > bw for _, _, bw, bh in final_boxes):
+        preprocessed = cv2.rotate(preprocessed, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        final_boxes = find_bounding_boxes(preprocessed, merge_threshold=20)
+    
+    #cv2.imwrite("image.png", preprocessed)
     
     config = '--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-'
     h_img, w_img = preprocessed.shape[:2]
@@ -233,7 +255,9 @@ def ocr_cell(cell: Table.Cell, original_img):
         y2 = min(by + bh + margin, h_img)
         
         cropped_box = preprocessed[y1:y2, x1:x2]
-        cropped_box = cv2.rotate(cropped_box, cv2.ROTATE_90_CLOCKWISE) if should_rotate(cropped_box) else cropped_box
+        
+        #cv2.imwrite("image2.png", cropped_box)
+        
         text = pytesseract.image_to_string(cropped_box, config=config)
         if text:
             all_texts.append(text.strip())

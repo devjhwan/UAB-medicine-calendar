@@ -62,20 +62,5 @@ def extract_and_save_table_regions(image_path, output_prefix="table_region", min
             output_filename = os.path.join(output_dir, f"{output_prefix}_{idx+1}.png")
             cv2.imwrite(output_filename, table_img)
             saved_paths.append(output_filename)
-            # (옵션) 원본 이미지에 검출 영역 표시 (디버그용)
-            cv2.rectangle(orig_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-    
-    # (옵션) 디버깅: 검출 영역이 표시된 원본 이미지 저장 또는 출력
-    # cv2.imwrite(os.path.join(output_dir, "detected_tables_debug.png"), orig_image)
-    # cv2.imshow("Detected Tables", orig_image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
     
     return saved_paths
-
-if __name__ == '__main__':
-    # 예시 사용
-    image_path = 'images/page_1.png'
-    saved_paths = extract_and_save_table_regions(image_path)
-    print("저장된 표 영역 이미지 경로:")
-    print(saved_paths)
